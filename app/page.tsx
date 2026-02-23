@@ -1,65 +1,90 @@
-import Image from "next/image";
+'use client'
+import dynamic from 'next/dynamic'
+import { useCallback, useMemo, useState } from 'react'
+import UploadZone from '@/components/UploadZone'
+import SummaryTable from '@/components/SummaryTable'
+import { parseKml, KmlPolygon } from '@/lib/kml-parser'
+import { getHexCells, Resolution, RESOLUTIONS } from '@/lib/h3-utils'
+
+// Leaflet must not be server-side rendered
+const HexMap = dynamic(() => import('@/components/HexMap'), { ssr: false })
 
 export default function Home() {
+  const [polygons, setPolygons] = useState<KmlPolygon[]>([])
+  const [activeRes, setActiveRes] = useState<Resolution>(7)
+  const [fileName, setFileName] = useState<string>('')
+
+  const handleKml = useCallback((kmlText: string, name: string) => {
+    const parsed = parseKml(kmlText)
+    setPolygons(parsed)
+    setFileName(name)
+  }, [])
+
+  // Pre-compute counts for all polygons × all resolutions
+  const counts = useMemo(() => {
+    const result: Record<string, Record<Resolution, number>> = {}
+    for (const p of polygons) {
+      result[p.name] = {} as Record<Resolution, number>
+      for (const r of RESOLUTIONS) {
+        result[p.name][r] = getHexCells(p.coords, r).length
+      }
+    }
+    return result
+  }, [polygons])
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Header */}
+      <header className="bg-white border-b px-6 py-3 flex items-center gap-3">
+        <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
+          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+          </svg>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+        <h1 className="text-gray-900 font-semibold text-lg">H3 Hex Coverage Tool</h1>
+        {fileName && (
+          <span className="ml-2 text-sm text-gray-400 bg-gray-100 px-2 py-0.5 rounded">{fileName}</span>
+        )}
+      </header>
+
+      {/* Upload — shown only when no polygons loaded */}
+      {polygons.length === 0 && (
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="w-full max-w-md">
+            <p className="text-center text-gray-500 mb-6 text-sm">
+              Upload a KML file to visualize H3 hex coverage at resolutions 6, 7, and 8
+            </p>
+            <UploadZone onLoad={handleKml} />
+          </div>
+        </div>
+      )}
+
+      {/* Map + sidebar — shown after upload */}
+      {polygons.length > 0 && (
+        <div className="flex-1 flex gap-4 p-4 min-h-0" style={{ height: 'calc(100vh - 57px)' }}>
+          {/* Map */}
+          <div className="flex-1 min-h-0">
+            <HexMap polygons={polygons} activeRes={activeRes} />
+          </div>
+
+          {/* Sidebar */}
+          <div className="w-72 flex flex-col gap-3">
+            <SummaryTable
+              polygons={polygons}
+              counts={counts}
+              activeRes={activeRes}
+              onResChange={setActiveRes}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <button
+              onClick={() => { setPolygons([]); setFileName('') }}
+              className="text-sm text-gray-400 hover:text-gray-600 underline text-center"
+            >
+              Upload a different file
+            </button>
+          </div>
         </div>
-      </main>
-    </div>
-  );
+      )}
+    </main>
+  )
 }
