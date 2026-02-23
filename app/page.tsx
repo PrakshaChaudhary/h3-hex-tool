@@ -11,7 +11,7 @@ const HexMap = dynamic(() => import('@/components/HexMap'), { ssr: false })
 
 export default function Home() {
   const [polygons, setPolygons] = useState<KmlPolygon[]>([])
-  const [activeRes, setActiveRes] = useState<Resolution>(7)
+  const [activeRes, setActiveRes] = useState<Resolution[]>([7])
   const [fileName, setFileName] = useState<string>('')
 
   const handleKml = useCallback((kmlText: string, name: string) => {

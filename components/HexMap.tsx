@@ -16,11 +16,16 @@ L.Icon.Default.mergeOptions({
 })
 
 const POLY_COLORS = ['#1a73e8', '#e53935', '#0d9488', '#f59e0b']
-const RES_HEX_COLOR: Record<Resolution, string> = { 6: '#2ecc71', 7: '#f39c12', 8: '#8b5cf6' }
+
+const RES_STYLE: Record<Resolution, { color: string; weight: number; fillOpacity: number }> = {
+  6: { color: '#2ecc71', weight: 1.2, fillOpacity: 0.25 },
+  7: { color: '#f39c12', weight: 0.7, fillOpacity: 0.18 },
+  8: { color: '#8b5cf6', weight: 0.4, fillOpacity: 0.12 },
+}
 
 interface Props {
   polygons: KmlPolygon[]
-  activeRes: Resolution
+  activeRes: Resolution[]
 }
 
 function FitBounds({ polygons }: { polygons: KmlPolygon[] }) {
@@ -34,8 +39,6 @@ function FitBounds({ polygons }: { polygons: KmlPolygon[] }) {
 }
 
 export default function HexMap({ polygons, activeRes }: Props) {
-  const hexColor = RES_HEX_COLOR[activeRes]
-
   return (
     <MapContainer
       center={[12.97, 77.59]}
@@ -64,7 +67,7 @@ export default function HexMap({ polygons, activeRes }: Props) {
           <GeoJSON
             key={`poly-${p.name}`}
             data={geoJson}
-            style={{ color, weight: 2.5, fillOpacity: 0.07 }}
+            style={{ color, weight: 2.5, fillOpacity: 0.06 }}
           >
             <Tooltip permanent direction="center" className="font-medium text-xs">
               {p.name}
@@ -73,26 +76,31 @@ export default function HexMap({ polygons, activeRes }: Props) {
         )
       })}
 
-      {/* H3 hex layer for active resolution */}
-      {polygons.map((p) => {
-        const cells = getHexCells(p.coords, activeRes)
-        // Skip res 8 for large polygons (>70k cells) to prevent browser freeze
-        if (activeRes === 8 && cells.length > 70000) return null
-        const geoJson = cellsToGeoJson(cells)
-        return (
-          <GeoJSON
-            key={`hex-${p.name}-${activeRes}`}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            data={geoJson as any}
-            style={{
-              color: hexColor,
-              weight: activeRes === 6 ? 1 : 0.5,
-              fillColor: hexColor,
-              fillOpacity: activeRes === 6 ? 0.3 : 0.2,
-            }}
-          />
-        )
-      })}
+      {/* H3 hex layers — one per active resolution, rendered lowest-res first */}
+      {([6, 7, 8] as Resolution[])
+        .filter((r) => activeRes.includes(r))
+        .map((r) =>
+          polygons.map((p) => {
+            const cells = getHexCells(p.coords, r)
+            // Skip res 8 for large polygons (>70k cells) to prevent browser freeze
+            if (r === 8 && cells.length > 70000) return null
+            const geoJson = cellsToGeoJson(cells)
+            const s = RES_STYLE[r]
+            return (
+              <GeoJSON
+                key={`hex-${p.name}-${r}`}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                data={geoJson as any}
+                style={{
+                  color: s.color,
+                  weight: s.weight,
+                  fillColor: s.color,
+                  fillOpacity: s.fillOpacity,
+                }}
+              />
+            )
+          })
+        )}
     </MapContainer>
   )
 }
