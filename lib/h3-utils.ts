@@ -15,7 +15,7 @@ export function getHexCells(
   resolution: Resolution
 ): string[] {
   // polygonToCells expects [[lat, lng], ...] — matches our convention
-  return polygonToCells(coords, resolution, true)
+  return polygonToCells(coords, resolution, false)
 }
 
 export function cellsToGeoJson(cells: string[]) {
